@@ -1,25 +1,42 @@
-import mysql.connector
+#!/usr/bin/env python3
+
 from seed import connect_to_prodev
 
 def stream_users_in_batches(batch_size):
-    """Generator that yields batches of users"""
+    """
+    Connects to the prodev database and streams users in batches.
+
+    Args:
+        batch_size (int): Number of records to fetch per batch.
+
+    Yields:
+        list: A list of user records (as dictionaries).
+    """
     connection = connect_to_prodev()
     cursor = connection.cursor(dictionary=True)
+    cursor.execute("SELECT * FROM user_data")
     
-    offset = 0
     while True:
-        cursor.execute(f"SELECT * FROM user_data LIMIT {batch_size} OFFSET {offset}")
-        batch = cursor.fetchall()
+        batch = cursor.fetchmany(batch_size)
         if not batch:
-            cursor.close()
-            connection.close()
             break
         yield batch
-        offset += batch_size
+
+    cursor.close()
+    connection.close()
 
 def batch_processing(batch_size):
-    """Process batches to filter users over 25"""
+    """
+    Processes users in batches and prints users older than 25.
+
+    Args:
+        batch_size (int): Size of each batch to process.
+    """
     for batch in stream_users_in_batches(batch_size):
         for user in batch:
-            if user['age'] > 25:
-                yield user  # Changed from print to yield
+            if int(user['age']) > 25:
+                print(user)
+
+# Example usage
+if __name__ == "__main__":
+    batch_processing(batch_size=100)
