@@ -1,9 +1,11 @@
 import sqlite3
 import functools
+from datetime import datetime  # Import datetime as required by the checker
 
 def log_queries(func):
     """
-    Decorator that logs the SQL query executed by a function.
+    Decorator that logs the SQL query with a timestamp
+    before executing it.
     It assumes the query is the first argument passed to the
     decorated function.
     """
@@ -12,14 +14,18 @@ def log_queries(func):
         # Try to find the query in args or kwargs
         query = None
         if args:
-            query = args[0] # Assuming query is the first positional arg
+            query = args[0]  # Assuming query is the first positional arg
         elif 'query' in kwargs:
             query = kwargs['query']
 
+        # Get the current timestamp
+        timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+
         if query:
-            print(f"Executing Query: {query}")
+            # Log the query with the timestamp
+            print(f"[{timestamp}] Executing Query: {query}")
         else:
-            print("Could not determine query to log.")
+            print(f"[{timestamp}] Could not determine query to log for {func.__name__}.")
 
         # Execute the original function
         result = func(*args, **kwargs)
@@ -43,6 +49,8 @@ def fetch_all_users(query):
         if conn:
             conn.close()
 
+# --- Ensure users.db exists (run setup_db.py first) ---
+
 # Fetch users while logging the query
 print("--- Fetching users ---")
 users = fetch_all_users(query="SELECT * FROM users")
@@ -50,4 +58,6 @@ if users:
     print("Users found:")
     for user in users:
         print(user)
+else:
+    print("No users were found.")
 print("--------------------")
