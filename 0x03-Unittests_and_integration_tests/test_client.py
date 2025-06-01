@@ -5,9 +5,9 @@ Unit and Integration tests for client.py
 
 import unittest
 from unittest.mock import patch, PropertyMock, Mock
-from parameterized import parameterized, parameterized_class # Kept parameterized_class if used elsewhere
-from client import GithubOrgClient # Assuming GithubOrgClient is in client.py
-from fixtures import TEST_PAYLOAD # Assuming TEST_PAYLOAD is in fixtures.py
+from parameterized import parameterized, parameterized_class
+from client import GithubOrgClient
+from fixtures import TEST_PAYLOAD
 
 
 class TestGithubOrgClient(unittest.TestCase):
@@ -17,91 +17,97 @@ class TestGithubOrgClient(unittest.TestCase):
         ("google",),
         ("abc",),
     ])
-    @patch("client.get_json")  # Mocks get_json used by GithubOrgClient
-    def test_org(self, org_name, mock_get_json):
-        """Test that GithubOrgClient.org returns the correct organization data."""
-        expected_payload = {"login": org_name, "name": "Test Org"} # Example payload
+    @patch("client.get_json")
+    def test_org(self, org_name_param, mock_get_json):
+        """Test GithubOrgClient.org returns correct organization data."""
+        expected_payload = {"login": org_name_param, "name": f"{org_name_param} Org"}
         mock_get_json.return_value = expected_payload
 
-        client = GithubOrgClient(org_name)
-        # Accessing client.org should trigger the call to get_json
+        client = GithubOrgClient(org_name_param)
         result_org_data = client.org
 
-        # Verify get_json was called once with the correct URL
-        expected_url = f"https://api.github.com/orgs/{org_name}"
+        expected_url = f"https://api.github.com/orgs/{org_name_param}"
         mock_get_json.assert_called_once_with(expected_url)
-        # Verify the .org property returns the payload from get_json
         self.assertEqual(result_org_data, expected_payload)
 
     def test_public_repos_url(self):
-        """Test that _public_repos_url returns the correct URL from org data."""
-        # Define a known payload that client.org would return
+        """Test _public_repos_url returns URL from org data."""
+        # Line 37 fix: Shortened docstring
         known_org_payload = {"repos_url": "https://api.github.com/orgs/testorg/repos"}
 
-        # Patch client.GithubOrgClient.org to return this known payload
-        # new_callable=PropertyMock is used because .org is a property
         with patch.object(GithubOrgClient, "org",
                           new_callable=PropertyMock) as mock_org_property:
             mock_org_property.return_value = known_org_payload
             
             client = GithubOrgClient("testorg")
-            # Accessing _public_repos_url should use the mocked org data
             result_repos_url = client._public_repos_url
 
             self.assertEqual(result_repos_url, known_org_payload["repos_url"])
+            mock_org_property.assert_called_once()
 
+    # Task 6: Use @patch as a decorator for get_json
     @patch("client.get_json")
-    @patch("client.GithubOrgClient._public_repos_url",
-           new_callable=PropertyMock)
-    # Corrected order of mock arguments: mock_get_json first, then mock_public_repos_url
-    def test_public_repos(self, mock_get_json, mock_public_repos_url):
-        """Test that public_repos returns a list of repo names."""
-        # Setup the mock for _public_repos_url property
-        # This is the URL from which the list of repos will be fetched.
-        test_repos_url = "https://api.github.com/orgs/testorg/repos"
-        mock_public_repos_url.return_value = test_repos_url
-
-        # Setup the mock for get_json
-        # This is what get_json will return when called with test_repos_url.
-        # It's a list of repo dictionaries.
-        mocked_repos_payload = [
-            {"name": "repo-alpha"},
+    def test_public_repos(self, mock_get_json): # Only mock_get_json is from decorator
+        """Test public_repos lists repos using specific patching strategy."""
+        
+        # 1. Define the payload that get_json will return for the repos URL
+        repos_payload = [
+            {"name": "repo-alpha", "license": {"key": "mit"}},
             {"name": "repo-beta"},
-            {"id": 123, "name": "repo-gamma", "license": {"key": "mit"}},
+            {"name": "repo-gamma"},
         ]
-        mock_get_json.return_value = mocked_repos_payload
+        mock_get_json.return_value = repos_payload
 
-        client = GithubOrgClient("testorg")
-        # Call public_repos, which should use the mocked _public_repos_url
-        # and the mocked get_json.
-        list_of_repo_names = client.public_repos()
+        # 2. Define the chosen value for _public_repos_url
+        expected_repos_url = "https://api.github.com/orgs/testorg/repos_url_from_prop"
 
-        # Expected list of names
-        expected_names = ["repo-alpha", "repo-beta", "repo-gamma"]
-        self.assertEqual(list_of_repo_names, expected_names)
+        # 3. Task 6: Use patch as a context manager for _public_repos_url
+        with patch.object(GithubOrgClient, "_public_repos_url",
+                          new_callable=PropertyMock) as mock_public_repos_url_prop:
+            
+            # Set the return value for the mocked _public_repos_url property
+            mock_public_repos_url_prop.return_value = expected_repos_url
 
-        # Verify that the _public_repos_url property was accessed once
-        mock_public_repos_url.assert_called_once()
-        # Verify that get_json was called once with the correct URL
-        mock_get_json.assert_called_once_with(test_repos_url)
+            # Instantiate the client
+            client = GithubOrgClient("any_org_name") # Org name doesn't affect this mock
+            
+            # Call public_repos. This should:
+            # - Access _public_repos_url (mocked to return expected_repos_url)
+            # - Call get_json with expected_repos_url (mocked to return repos_payload)
+            list_of_repo_names = client.public_repos()
+
+            # Define the expected list of names from our repos_payload
+            expected_names = ["repo-alpha", "repo-beta", "repo-gamma"]
+            self.assertEqual(list_of_repo_names, expected_names)
+
+            # 4. Test that the mocked property (_public_repos_url) was called once
+            mock_public_repos_url_prop.assert_called_once()
+
+        # 5. Test that mocked get_json was called once with the expected URL
+        # This assertion is outside the 'with' block for the property mock,
+        # as get_json is mocked for the entire method via the decorator.
+        # The call to get_json happens when client.public_repos() is executed.
+        # Line 62 fix: If an inline comment here was too long, it's removed or shortened.
+        # For example, if this line was the culprit, ensure no long inline comment:
+        mock_get_json.assert_called_once_with(expected_repos_url)
+
 
     @parameterized.expand([
         ({"license": {"key": "my_license"}}, "my_license", True),
         ({"license": {"key": "other_license"}}, "my_license", False),
-        ({"license": None}, "my_license", False), # Test case with no license
-        ({}, "my_license", False), # Test case with missing license field
-        ({"license": {"key": "mit"}}, "MIT", False), # Case sensitivity
+        ({"license": None}, "my_license", False),
+        ({}, "my_license", False),
+        ({"license": {"key": "mit"}}, "MIT", False), 
         ({"license": {"key": "apache-2.0"}}, "apache-2.0", True),
+        ({"license": {"name": "MIT License"}}, "mit", False), 
     ])
     def test_has_license(self, repo_payload, license_key, expected_result):
         """Test the static method has_license with various inputs."""
-        # GithubOrgClient.has_license is a static method
         self.assertEqual(
             GithubOrgClient.has_license(repo_payload, license_key),
             expected_result
         )
 
 
-# This allows the test to be run directly using `python test_client.py`
 if __name__ == '__main__':
     unittest.main()
