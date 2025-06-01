@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
-"""Unit tests for utils.py"""
+"""
+Unit tests for utils.py utility functions.
+"""
 
 import unittest
 from parameterized import parameterized
@@ -8,64 +10,101 @@ from utils import access_nested_map, get_json, memoize
 
 
 class TestAccessNestedMap(unittest.TestCase):
-    """Test cases for access_nested_map function."""
+    """Test cases for the access_nested_map function."""
 
     @parameterized.expand([
         ({"a": 1}, ("a",), 1),
         ({"a": {"b": 2}}, ("a",), {"b": 2}),
         ({"a": {"b": 2}}, ("a", "b"), 2),
     ])
-    def test_access_nested_map(self, nested_map, path, expected):
-        """Test normal access to nested maps."""
-        self.assertEqual(access_nested_map(nested_map, path), expected)
+    def test_access_nested_map(self, nested_map, path, expected_result):
+        """Test access_nested_map with various inputs."""
+        self.assertEqual(access_nested_map(nested_map, path), expected_result)
 
     @parameterized.expand([
         ({}, ("a",), KeyError),
         ({"a": 1}, ("a", "b"), KeyError),
     ])
-    def test_access_nested_map_exception(self, nested_map, path, expected):
-        """Test exceptions raised by access_nested_map."""
-        with self.assertRaises(expected):
+    def test_access_nested_map_exception(self, nested_map, path,
+                                         expected_exception):
+        """Test that access_nested_map raises appropriate KeyErrors."""
+        with self.assertRaises(expected_exception):
             access_nested_map(nested_map, path)
 
 
 class TestGetJson(unittest.TestCase):
-    """Test cases for get_json function."""
+    """Test cases for the get_json function."""
 
     @parameterized.expand([
         ("http://example.com", {"payload": True}),
         ("http://holberton.io", {"payload": False}),
     ])
     def test_get_json(self, test_url, test_payload):
-        """Test get_json returns expected data from mocked HTTP call."""
-        with patch("utils.requests.get") as mock_get:
+        """Test get_json returns the expected JSON payload from a URL."""
+        # Mock the requests.get call within the utils.get_json scope
+        with patch("utils.requests.get") as mock_requests_get:
             mock_response = Mock()
             mock_response.json.return_value = test_payload
-            mock_get.return_value = mock_response
+            mock_requests_get.return_value = mock_response
 
-            result = get_json(test_url)
-            mock_get.assert_called_once_with(test_url)
-            self.assertEqual(result, test_payload)
+            # Call the function that uses requests.get
+            result_payload = get_json(test_url)
+
+            # Assert that requests.get was called once with the correct URL
+            mock_requests_get.assert_called_once_with(test_url)
+            # Assert that the returned payload is correct
+            self.assertEqual(result_payload, test_payload)
 
 
 class TestMemoize(unittest.TestCase):
-    """Test cases for memoize decorator."""
+    """Test cases for the memoize decorator."""
 
     def test_memoize(self):
-        """Test that memoize caches method output correctly."""
+        """
+        Test that the memoize decorator caches the result of a method,
+        making it behave like a property that computes its value once.
+        """
 
         class TestClass:
-            """Test class with method and memoized property."""
+            """A test class with a method and a memoized property."""
+
             def a_method(self):
-                """Returns a fixed value."""
+                """A method that returns a fixed value."""
                 return 42
 
             @memoize
             def a_property(self):
-                """Memoized property that calls a_method."""
+                """
+                A property that calls a_method. With @memoize, it's
+                expected to compute once and cache the result.
+                """
                 return self.a_method()
 
-        with patch.object(TestClass,
-                          "a_method",
-                          return_value=42) as mock_a_method:
-            test_instance
+        # Patch a_method on TestClass.
+        # The 'return_value' ensures that when the mocked a_method is called,
+        # it returns 42, allowing a_property to compute its initial value.
+        with patch.object(
+            TestClass,
+            "a_method",
+            return_value=42
+        ) as mock_a_method:
+            test_instance = TestClass()
+
+            # Access a_property twice.
+            # IMPORTANT ASSUMPTION: utils.memoize makes 'a_property'
+            # behave like an attribute (accessed without parentheses)
+            # after the first computation. If it raised TypeError before,
+            # this should fix it.
+            value1 = test_instance.a_property
+            value2 = test_instance.a_property
+
+            # Check that both accesses return the correct value.
+            self.assertEqual(value1, 42)
+            self.assertEqual(value2, 42)
+
+            # Check that the underlying a_method was called only once.
+            mock_a_method.assert_called_once()
+
+
+if __name__ == '__main__':
+    unittest.main()
