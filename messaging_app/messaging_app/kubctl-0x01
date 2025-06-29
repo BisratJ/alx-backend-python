@@ -1,0 +1,34 @@
+#!/bin/bash
+
+# Exit immediately if any command fails
+set -e
+
+echo "🔄 Scaling the messaging-app deployment to 3 replicas..."
+kubectl scale deployment messaging-app --replicas=3
+
+echo "⏳ Waiting for pods to be ready..."
+kubectl wait --for=condition=Ready pod -l app=messaging --timeout=60s
+
+echo -e "\n✅ Current pods:"
+kubectl get pods -l app=messaging
+
+echo -e "\n🔍 Resource usage (CPU/Memory):"
+kubectl top pods
+
+echo -e "\n🚀 Load testing with wrk..."
+
+# Start a port forward in background
+echo "🔌 Port-forwarding messaging-service to localhost:8080..."
+kubectl port-forward service/messaging-service 8080:80 > /dev/null 2>&1 &
+PF_PID=$!
+
+# Give it a few seconds to establish connection
+sleep 5
+
+# Run wrk test (10 seconds, 2 threads, 10 connections)
+wrk -t2 -c10 -d10s http://localhost:8080/ || echo "⚠️ wrk failed or not installed."
+
+# Kill the background port-forward process
+kill $PF_PID
+
+echo -e "\n✅ Done."

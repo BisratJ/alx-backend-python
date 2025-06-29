@@ -1,0 +1,62 @@
+#!/bin/bash
+# messaging_app/kurbeScript
+
+set -euo pipefail
+
+echo "🔍 Checking system dependencies..."
+
+# Function to check if a command exists
+command_exists() {
+  command -v "$1" >/dev/null 2>&1
+}
+
+# 🧰 Install kubectl if not found
+install_kubectl() {
+  echo "📦 Installing kubectl..."
+  curl -LO "https://dl.k8s.io/release/$(curl -sL https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+  chmod +x kubectl
+  sudo mv kubectl /usr/local/bin/
+  echo "✅ kubectl installed."
+}
+
+# 🧰 Install minikube if not found
+install_minikube() {
+  echo "📦 Installing Minikube..."
+  curl -LO https://storage.googleapis.com/minikube/releases/latest/minikube-linux-amd64
+  chmod +x minikube-linux-amd64
+  sudo mv minikube-linux-amd64 /usr/local/bin/minikube
+  echo "✅ Minikube installed."
+}
+
+# 📍 Ensure kubectl
+if ! command_exists kubectl; then
+  echo "❌ kubectl not found."
+  install_kubectl
+else
+  echo "✅ kubectl is installed."
+fi
+
+# 📍 Ensure minikube
+if ! command_exists minikube; then
+  echo "❌ Minikube not found."
+  install_minikube
+else
+  echo "✅ Minikube is installed."
+fi
+
+# 🚀 Start minikube
+echo "🚀 Starting Minikube cluster..."
+minikube start --driver=docker
+
+echo "⏳ Waiting for the cluster to be ready..."
+sleep 10
+
+# 🧠 Check cluster info
+echo "🔍 Verifying cluster status..."
+kubectl cluster-info
+
+# 📦 List all pods
+echo "📦 Listing current pods in all namespaces..."
+kubectl get pods --all-namespaces
+
+echo "🎉 Kubernetes cluster is running and operational."

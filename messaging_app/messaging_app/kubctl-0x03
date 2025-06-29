@@ -1,0 +1,27 @@
+#!/bin/bash
+
+set -e
+
+echo "🔄 Starting rolling update with image v2.0..."
+
+# Apply updated deployment
+kubectl apply -f messaging_app/blue_deployment.yaml
+
+echo "⏳ Monitoring rollout status..."
+kubectl rollout status deployment messaging-app-blue
+
+echo "📡 Health checking app endpoint during rollout..."
+
+APP_IP=$(kubectl get svc messaging-service -o jsonpath="{.spec.clusterIP}")
+APP_PORT=80
+
+# In a real environment, use external IP. For now, use ClusterIP and run curl inside a pod
+kubectl run curl-test --rm -i --tty --image=curlimages/curl --restart=Never -- \
+    /bin/sh -c "for i in \$(seq 1 10); do curl -s --max-time 2 http://$APP_IP:$APP_PORT/ || echo '❌ Request failed'; sleep 1; done"
+
+echo "✅ Rolling update health checks completed."
+
+echo "📦 Active pods after update:"
+kubectl get pods -l app=messaging,version=blue -o wide
+
+echo "✅ Rolling update to v2.0 complete."

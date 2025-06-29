@@ -1,0 +1,62 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: messaging-app-green
+  labels:
+    app: messaging
+    version: green
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: messaging
+      version: green
+  template:
+    metadata:
+      labels:
+        app: messaging
+        version: green
+    spec:
+      containers:
+        - name: django-container
+          image: messaging-app:v2
+          ports:
+            - containerPort: 8000
+          env:
+            - name: MYSQL_DB
+              value: messaging_db
+            - name: MYSQL_USER
+              value: messenger
+            - name: MYSQL_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: django-secrets
+                  key: MYSQL_PASSWORD
+            - name: MYSQL_ROOT_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: django-secrets
+                  key: MYSQL_ROOT_PASSWORD
+            - name: MYSQL_HOST
+              value: mysql
+            - name: DJANGO_ALLOWED_HOSTS
+              value: "*"
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 8000
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 8000
+            initialDelaySeconds: 10
+            periodSeconds: 15
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "250m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
