@@ -1,0 +1,5 @@
+# Install NGINX Ingress Controller
+kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/controller-v1.9.1/deploy/static/provider/cloud/deploy.yaml
+
+# Apply the ingress.yaml file to expose the Django app
+kubectl apply -f messaging_app/ingress.yaml
