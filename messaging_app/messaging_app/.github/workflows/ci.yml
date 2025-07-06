@@ -1,0 +1,82 @@
+name: Django CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    services:
+      mysql:
+        image: mysql:5.7
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: test_db
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping --silent"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=3
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.8'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r messaging_app/requirements.txt
+        pip install flake8 coverage
+
+    - name: Run flake8 linting
+      run: |
+        flake8 messaging_app
+      continue-on-error: false # Fail the build if linting errors are detected
+
+    - name: Run migrations
+      env:
+        MYSQL_HOST: 127.0.0.1
+        MYSQL_PORT: 3306
+        MYSQL_DB: test_db
+        MYSQL_ROOT_PASSWORD: root
+      run: |
+        python manage.py makemigrations
+        python manage.py migrate
+
+    - name: Run tests with coverage
+      env:
+        MYSQL_HOST: 127.0.0.1
+        MYSQL_PORT: 3306
+        MYSQL_DB: test_db
+        MYSQL_ROOT_PASSWORD: root
+      run: |
+        coverage run -m pytest
+        coverage xml
+        coverage report
+
+    - name: Archive test results
+      if: always()
+      uses: actions/upload-artifact@v3
+      with:
+        name: test-results
+        path: report.xml
+
+    - name: Upload coverage report
+      if: always()
+      uses: actions/upload-artifact@v3
+      with:
+        name: coverage-report
+        path: coverage.xml
